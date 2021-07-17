@@ -162,6 +162,11 @@ MatchName=AT Translated Set 2 keyboard
 MatchDMIModalias=dmi:*svnLENOVO:*pvrThinkPadX60Tablet:*
 ModelTabletModeNoSuspend=1
 
+[Lenovo X61 Tablet]
+MatchName=AT Translated Set 2 keyboard
+MatchDMIModalias=dmi:*svnLENOVO:*pvrThinkPadX61Tablet:*
+ModelTabletModeNoSuspend=1
+
 # Lenovo X220 Tablet special bezel buttons are associated to the
 # keyboard and would therefore mistakenly be deactivated as well.
 # See https://gitlab.freedesktop.org/libinput/libinput/issues/154
@@ -237,4 +242,10 @@ MatchVendor=0x27C6
 MatchProduct=0x01E8
 AttrEventCodeDisable=ABS_MT_PRESSURE;ABS_PRESSURE;
 
+# Duet 7i tablet switch activated by folding keyboard cover, or removing it.
+# We must not disable volume rocker 'keyboard'.
+[Lenovo Duet 7i]
+MatchName=AT Raw Set 2 keyboard
+MatchDMIModalias=dmi:*svnLENOVO:*pvrYogaDuet713IML05:*
+ModelTabletModeNoSuspend=1
 
