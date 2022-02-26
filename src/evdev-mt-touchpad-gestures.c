@@ -555,9 +555,9 @@ tp_gesture_set_hold_timer(struct tp_dispatch *tp, uint64_t time)
 }
 
 static void
-tp_gesture_none_handle_event(struct tp_dispatch *tp,
-			     enum gesture_event event,
-			     uint64_t time)
+tp_gesture_handle_event_on_state_none(struct tp_dispatch *tp,
+				      enum gesture_event event,
+				      uint64_t time)
 {
 	switch(event) {
 	case GESTURE_EVENT_RESET:
@@ -584,9 +584,9 @@ tp_gesture_none_handle_event(struct tp_dispatch *tp,
 }
 
 static void
-tp_gesture_unknown_handle_event(struct tp_dispatch *tp,
-				enum gesture_event event,
-				uint64_t time)
+tp_gesture_handle_event_on_state_unknown(struct tp_dispatch *tp,
+					 enum gesture_event event,
+					 uint64_t time)
 {
 	switch(event) {
 	case GESTURE_EVENT_RESET:
@@ -624,9 +624,9 @@ tp_gesture_unknown_handle_event(struct tp_dispatch *tp,
 }
 
 static void
-tp_gesture_hold_handle_event(struct tp_dispatch *tp,
-			     enum gesture_event event,
-			     uint64_t time)
+tp_gesture_handle_event_on_state_hold(struct tp_dispatch *tp,
+				      enum gesture_event event,
+				      uint64_t time)
 {
 	switch(event) {
 	case GESTURE_EVENT_RESET:
@@ -662,9 +662,9 @@ tp_gesture_hold_handle_event(struct tp_dispatch *tp,
 }
 
 static void
-tp_gesture_hold_and_motion_handle_event(struct tp_dispatch *tp,
-					enum gesture_event event,
-					uint64_t time)
+tp_gesture_handle_event_on_state_hold_and_motion(struct tp_dispatch *tp,
+						 enum gesture_event event,
+						 uint64_t time)
 {
 	switch(event) {
 	case GESTURE_EVENT_RESET:
@@ -687,9 +687,9 @@ tp_gesture_hold_and_motion_handle_event(struct tp_dispatch *tp,
 }
 
 static void
-tp_gesture_pointer_motion_handle_event(struct tp_dispatch *tp,
-				       enum gesture_event event,
-				       uint64_t time)
+tp_gesture_handle_event_on_state_pointer_motion(struct tp_dispatch *tp,
+						enum gesture_event event,
+						uint64_t time)
 {
 	struct tp_touch *first;
 	struct phys_coords first_moved;
@@ -725,9 +725,35 @@ tp_gesture_pointer_motion_handle_event(struct tp_dispatch *tp,
 }
 
 static void
-tp_gesture_scroll_handle_event(struct tp_dispatch *tp,
-			       enum gesture_event event,
-			       uint64_t time)
+tp_gesture_handle_event_on_state_scroll(struct tp_dispatch *tp,
+					enum gesture_event event,
+					uint64_t time)
+{
+	switch(event) {
+	case GESTURE_EVENT_RESET:
+		libinput_timer_cancel(&tp->gesture.hold_timer);
+		tp->gesture.state = GESTURE_STATE_NONE;
+		break;
+	case GESTURE_EVENT_PINCH:
+		tp_gesture_init_pinch(tp);
+		tp_gesture_cancel(tp, time);
+		tp->gesture.state = GESTURE_STATE_PINCH;
+		break;
+	case GESTURE_EVENT_HOLD_AND_MOTION:
+	case GESTURE_EVENT_FINGER_DETECTED:
+	case GESTURE_EVENT_HOLD_TIMEOUT:
+	case GESTURE_EVENT_POINTER_MOTION:
+	case GESTURE_EVENT_SCROLL:
+	case GESTURE_EVENT_SWIPE:
+		log_gesture_bug(tp, event);
+		break;
+	}
+}
+
+static void
+tp_gesture_handle_event_on_state_pinch(struct tp_dispatch *tp,
+				       enum gesture_event event,
+				       uint64_t time)
 {
 	switch(event) {
 	case GESTURE_EVENT_RESET:
@@ -747,31 +773,9 @@ tp_gesture_scroll_handle_event(struct tp_dispatch *tp,
 }
 
 static void
-tp_gesture_pinch_handle_event(struct tp_dispatch *tp,
-			      enum gesture_event event,
-			      uint64_t time)
-{
-	switch(event) {
-	case GESTURE_EVENT_RESET:
-		libinput_timer_cancel(&tp->gesture.hold_timer);
-		tp->gesture.state = GESTURE_STATE_NONE;
-		break;
-	case GESTURE_EVENT_HOLD_AND_MOTION:
-	case GESTURE_EVENT_FINGER_DETECTED:
-	case GESTURE_EVENT_HOLD_TIMEOUT:
-	case GESTURE_EVENT_POINTER_MOTION:
-	case GESTURE_EVENT_SCROLL:
-	case GESTURE_EVENT_SWIPE:
-	case GESTURE_EVENT_PINCH:
-		log_gesture_bug(tp, event);
-		break;
-	}
-}
-
-static void
-tp_gesture_swipe_handle_event(struct tp_dispatch *tp,
-			      enum gesture_event event,
-			      uint64_t time)
+tp_gesture_handle_event_on_state_swipe(struct tp_dispatch *tp,
+				       enum gesture_event event,
+				       uint64_t time)
 {
 	switch(event) {
 	case GESTURE_EVENT_RESET:
@@ -801,28 +805,28 @@ tp_gesture_handle_event(struct tp_dispatch *tp,
 
 	switch(tp->gesture.state) {
 	case GESTURE_STATE_NONE:
-		tp_gesture_none_handle_event(tp, event, time);
+		tp_gesture_handle_event_on_state_none(tp, event, time);
 		break;
 	case GESTURE_STATE_UNKNOWN:
-		tp_gesture_unknown_handle_event(tp, event, time);
+		tp_gesture_handle_event_on_state_unknown(tp, event, time);
 		break;
 	case GESTURE_STATE_HOLD:
-		tp_gesture_hold_handle_event(tp, event, time);
+		tp_gesture_handle_event_on_state_hold(tp, event, time);
 		break;
 	case GESTURE_STATE_HOLD_AND_MOTION:
-		tp_gesture_hold_and_motion_handle_event(tp, event, time);
+		tp_gesture_handle_event_on_state_hold_and_motion(tp, event, time);
 		break;
 	case GESTURE_STATE_POINTER_MOTION:
-		tp_gesture_pointer_motion_handle_event(tp, event, time);
+		tp_gesture_handle_event_on_state_pointer_motion(tp, event, time);
 		break;
 	case GESTURE_STATE_SCROLL:
-		tp_gesture_scroll_handle_event(tp, event, time);
+		tp_gesture_handle_event_on_state_scroll(tp, event, time);
 		break;
 	case GESTURE_STATE_PINCH:
-		tp_gesture_pinch_handle_event(tp, event, time);
+		tp_gesture_handle_event_on_state_pinch(tp, event, time);
 		break;
 	case GESTURE_STATE_SWIPE:
-		tp_gesture_swipe_handle_event(tp, event, time);
+		tp_gesture_handle_event_on_state_swipe(tp, event, time);
 		break;
 	}
 
@@ -958,7 +962,7 @@ tp_gesture_detect_motion_gestures(struct tp_dispatch *tp, uint64_t time)
 		 */
 		if (tp->thumb.detect_thumbs && thumb_mm < min_move) {
 			tp_thumb_suppress(tp, thumb);
-			tp_gesture_handle_event(tp, GESTURE_EVENT_RESET, time);
+			tp_gesture_cancel(tp, time);
 			return;
 		}
 
@@ -1166,7 +1170,6 @@ tp_gesture_handle_state_scroll(struct tp_dispatch *tp, uint64_t time)
 	 */
 	if (time < (tp->gesture.initial_time + DEFAULT_GESTURE_PINCH_TIMEOUT) &&
 	    tp_gesture_is_pinch(tp)) {
-		tp_gesture_cancel(tp, time);
 		tp_gesture_handle_event(tp, GESTURE_EVENT_PINCH, time);
 		return;
 	}
@@ -1256,11 +1259,11 @@ tp_gesture_post_gesture(struct tp_dispatch *tp, uint64_t time,
 	if (tp->gesture.state == GESTURE_STATE_HOLD)
 		tp_gesture_handle_state_hold(tp, time, ignore_motion);
 
-	if (tp->gesture.state == GESTURE_STATE_HOLD_AND_MOTION)
-		tp_gesture_handle_state_hold_and_pointer_motion(tp, time);
-
 	if (tp->gesture.state == GESTURE_STATE_POINTER_MOTION)
 		tp_gesture_handle_state_pointer_motion(tp, time);
+
+	if (tp->gesture.state == GESTURE_STATE_HOLD_AND_MOTION)
+		tp_gesture_handle_state_hold_and_pointer_motion(tp, time);
 
 	if (tp->gesture.state == GESTURE_STATE_SCROLL)
 		tp_gesture_handle_state_scroll(tp, time);
@@ -1281,6 +1284,9 @@ tp_gesture_thumb_moved(struct tp_dispatch *tp)
 
 	thumb = tp_thumb_get_touch(tp);
 	if (!thumb)
+		return false;
+
+	if (!tp_touch_active_for_gesture(tp, thumb))
 		return false;
 
 	thumb_moved = tp_gesture_mm_moved(tp, thumb);

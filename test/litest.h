@@ -320,6 +320,7 @@ enum litest_device_type {
 	LITEST_KEYBOARD_QUIRKED,
 	LITEST_SYNAPTICS_PRESSUREPAD,
 	LITEST_GENERIC_PRESSUREPAD,
+	LITEST_WACOM_ISDV4_524C_PEN,
 };
 
 #define LITEST_DEVICELESS	-2
@@ -630,6 +631,16 @@ void
 litest_tablet_proximity_out(struct litest_device *d);
 
 void
+litest_tablet_tip_down(struct litest_device *d,
+		       int x, int y,
+		       struct axis_replacement *axes);
+
+void
+litest_tablet_tip_up(struct litest_device *d,
+		     int x, int y,
+		     struct axis_replacement *axes);
+
+void
 litest_tablet_motion(struct litest_device *d,
 		     int x, int y,
 		     struct axis_replacement *axes);
@@ -747,8 +758,12 @@ litest_is_button_event(struct libinput_event *event,
 
 struct libinput_event_pointer *
 litest_is_axis_event(struct libinput_event *event,
+		     enum libinput_event_type axis_type,
 		     enum libinput_pointer_axis axis,
 		     enum libinput_pointer_axis_source source);
+
+bool
+litest_is_high_res_axis_event(struct libinput_event *event);
 
 struct libinput_event_pointer *
 litest_is_motion_event(struct libinput_event *event);
@@ -797,6 +812,13 @@ struct libinput_event_tablet_tool *
 litest_is_proximity_event(struct libinput_event *event,
 			  enum libinput_tablet_tool_proximity_state state);
 
+double
+litest_event_pointer_get_value(struct libinput_event_pointer *ptrev,
+			       enum libinput_pointer_axis axis);
+
+enum libinput_pointer_axis_source
+litest_event_pointer_get_axis_source(struct libinput_event_pointer *event);
+
 void
 litest_assert_key_event(struct libinput *li, unsigned int key,
 			enum libinput_key_state state);
@@ -808,12 +830,23 @@ litest_assert_button_event(struct libinput *li,
 
 void
 litest_assert_scroll(struct libinput *li,
+		     enum libinput_event_type axis_type,
 		     enum libinput_pointer_axis axis,
 		     int minimum_movement);
 
 void
+litest_assert_axis_end_sequence(struct libinput *li,
+				enum libinput_event_type axis_type,
+				enum libinput_pointer_axis axis,
+				enum libinput_pointer_axis_source source);
+
+void
 litest_assert_only_typed_events(struct libinput *li,
 				enum libinput_event_type type);
+
+void
+litest_assert_only_axis_events(struct libinput *li,
+			       enum libinput_event_type axis_type);
 
 void
 litest_assert_no_typed_events(struct libinput *li,
@@ -871,6 +904,9 @@ litest_timeout_softbuttons(void);
 
 void
 litest_timeout_buttonscroll(void);
+
+void
+litest_timeout_wheel_scroll(void);
 
 void
 litest_timeout_edgescroll(void);

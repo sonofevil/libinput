@@ -77,6 +77,11 @@ struct wheel_angle {
 	double x, y;
 };
 
+/* A pair of wheel click data for the 120-normalized range */
+struct wheel_v120 {
+	int x, y;
+};
+
 /* A pair of angles in degrees */
 struct tilt_degrees {
 	double x, y;
@@ -131,6 +136,8 @@ struct libinput {
 		struct libinput_source *source;
 		int fd;
 		uint64_t next_expiry;
+
+		struct ratelimit expiry_in_past_limit;
 	} timer;
 
 	struct libinput_event **events;
@@ -568,12 +575,29 @@ pointer_notify_button(struct libinput_device *device,
 		      enum libinput_button_state state);
 
 void
-pointer_notify_axis(struct libinput_device *device,
-		    uint64_t time,
-		    uint32_t axes,
-		    enum libinput_pointer_axis_source source,
-		    const struct normalized_coords *delta,
-		    const struct discrete_coords *discrete);
+pointer_notify_axis_finger(struct libinput_device *device,
+			   uint64_t time,
+			   uint32_t axes,
+			   const struct normalized_coords *delta);
+void
+pointer_notify_axis_continuous(struct libinput_device *device,
+			       uint64_t time,
+			       uint32_t axes,
+			       const struct normalized_coords *delta);
+
+void
+pointer_notify_axis_legacy_wheel(struct libinput_device *device,
+				 uint64_t time,
+				 uint32_t axes,
+				 const struct normalized_coords *delta,
+				 const struct discrete_coords *discrete);
+
+void
+pointer_notify_axis_wheel(struct libinput_device *device,
+			  uint64_t time,
+			  uint32_t axes,
+			  const struct normalized_coords *delta,
+			  const struct wheel_v120 *v120);
 
 void
 touch_notify_touch_down(struct libinput_device *device,
@@ -843,7 +867,7 @@ xy_get_direction(double x, double y)
 		d1 = (int)(r + 0.9) % 8;
 		d2 = (int)(r + 0.1) % 8;
 
-		dir = (1 << d1) | (1 << d2);
+		dir = bit(d1) | bit(d2);
 	}
 
 	return dir;

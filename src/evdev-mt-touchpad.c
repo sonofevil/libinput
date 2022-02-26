@@ -39,7 +39,7 @@
 #define DEFAULT_TRACKPOINT_EVENT_TIMEOUT ms2us(40)
 #define DEFAULT_KEYBOARD_ACTIVITY_TIMEOUT_1 ms2us(200)
 #define DEFAULT_KEYBOARD_ACTIVITY_TIMEOUT_2 ms2us(500)
-#define FAKE_FINGER_OVERFLOW (1 << 7)
+#define FAKE_FINGER_OVERFLOW bit(7)
 #define THUMB_IGNORE_SPEED_THRESHOLD 20 /* mm/s */
 
 enum notify {
@@ -198,7 +198,7 @@ tp_detect_wobbling(struct tp_dispatch *tp,
 	if (dx > 0) { /* right move */
 		static const char r_l_r = 0x5; /* {Right, Left, Right} */
 
-		t->hysteresis.x_motion_history |= (1 << 2);
+		t->hysteresis.x_motion_history |= bit(2);
 		if (t->hysteresis.x_motion_history == r_l_r) {
 			tp->hysteresis.enabled = true;
 			evdev_log_debug(tp->device,
@@ -303,10 +303,10 @@ tp_fake_finger_set(struct tp_dispatch *tp,
 
 	if (is_press) {
 		tp->fake_touches &= ~FAKE_FINGER_OVERFLOW;
-		tp->fake_touches |= 1 << shift;
+		tp->fake_touches |= bit(shift);
 
 	} else {
-		tp->fake_touches &= ~(0x1 << shift);
+		tp->fake_touches &= ~bit(shift);
 	}
 }
 
@@ -1916,6 +1916,7 @@ tp_handle_state(struct tp_dispatch *tp,
 	tp_apply_rotation(tp->device);
 }
 
+LIBINPUT_UNUSED
 static inline void
 tp_debug_touch_state(struct tp_dispatch *tp,
 		     struct evdev_device *device)
@@ -1999,8 +2000,14 @@ static void
 tp_interface_remove(struct evdev_dispatch *dispatch)
 {
 	struct tp_dispatch *tp = tp_dispatch(dispatch);
+	struct evdev_paired_keyboard *kbd;
 
 	libinput_timer_cancel(&tp->arbitration.arbitration_timer);
+
+	list_for_each_safe(kbd, &tp->dwt.paired_keyboard_list, link) {
+		evdev_paired_keyboard_destroy(kbd);
+	}
+	tp->dwt.keyboard_active = false;
 
 	tp_remove_tap(tp);
 	tp_remove_buttons(tp);
@@ -2400,14 +2407,13 @@ tp_pair_trackpoint(struct evdev_device *touchpad,
 			struct evdev_device *trackpoint)
 {
 	struct tp_dispatch *tp = (struct tp_dispatch*)touchpad->dispatch;
-	unsigned int bus_tp = libevdev_get_id_bustype(touchpad->evdev),
-		     bus_trp = libevdev_get_id_bustype(trackpoint->evdev);
+	unsigned int bus_trp = libevdev_get_id_bustype(trackpoint->evdev);
 	bool tp_is_internal, trp_is_internal;
 
 	if ((trackpoint->tags & EVDEV_TAG_TRACKPOINT) == 0)
 		return;
 
-	tp_is_internal = bus_tp != BUS_USB && bus_tp != BUS_BLUETOOTH;
+	tp_is_internal = !!(touchpad->tags & EVDEV_TAG_INTERNAL_TOUCHPAD);
 	trp_is_internal = bus_trp != BUS_USB && bus_trp != BUS_BLUETOOTH;
 
 	if (tp->buttons.trackpoint == NULL &&
@@ -2724,22 +2730,15 @@ evdev_tag_touchpad(struct evdev_device *device,
 	/* The hwdb is the authority on integration, these heuristics are
 	 * the fallback only (they precede the hwdb too).
 	 *
-	 * Simple approach: USB is unknown, with the exception
-	 * of Apple where internal touchpads are connected over USB and it
-	 * doesn't have external USB touchpads anyway.
-	 *
+	 * Simple approach:
 	 * Bluetooth touchpads are considered external, anything else is
-	 * internal.
+	 * internal. Except the ones from some vendors that only make external
+	 * touchpads.
 	 */
 	bustype = libevdev_get_id_bustype(device->evdev);
 	vendor = libevdev_get_id_vendor(device->evdev);
 
 	switch (bustype) {
-	case BUS_USB:
-		if (evdev_device_has_model_quirk(device,
-						 QUIRK_MODEL_APPLE_TOUCHPAD))
-			 evdev_tag_touchpad_internal(device);
-		break;
 	case BUS_BLUETOOTH:
 		evdev_tag_touchpad_external(device);
 		break;
@@ -3661,8 +3660,8 @@ tp_init(struct tp_dispatch *tp,
 	if (!use_touch_size)
 		tp_init_pressure(tp, device);
 
-	/* 5 warnings per 2 hours should be enough */
-	ratelimit_init(&tp->jump.warning, s2us(2 * 60 * 60), 5);
+	/* 5 warnings per 24 hours should be enough */
+	ratelimit_init(&tp->jump.warning, h2us(24), 5);
 
 	/* Set the dpi to that of the x axis, because that's what we normalize
 	   to when needed*/
