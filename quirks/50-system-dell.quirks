@@ -14,6 +14,7 @@ AttrMscTimestamp=watch
 [Dell Inspiron 15R N5110 Touchpad]
 MatchUdevType=touchpad
 MatchName=*AlpsPS/2 ALPS GlidePoint
+MatchVersion=0x0300
 MatchDMIModalias=dmi:*svnDellInc.:*pnInspironN5110*
 AttrPressureRange=100:95
 

@@ -320,6 +320,7 @@ enum litest_device_type {
 	LITEST_KEYBOARD_QUIRKED,
 	LITEST_SYNAPTICS_PRESSUREPAD,
 	LITEST_GENERIC_PRESSUREPAD,
+	LITEST_WACOM_ISDV4_524C_PEN,
 };
 
 #define LITEST_DEVICELESS	-2
@@ -630,6 +631,16 @@ void
 litest_tablet_proximity_out(struct litest_device *d);
 
 void
+litest_tablet_tip_down(struct litest_device *d,
+		       int x, int y,
+		       struct axis_replacement *axes);
+
+void
+litest_tablet_tip_up(struct litest_device *d,
+		     int x, int y,
+		     struct axis_replacement *axes);
+
+void
 litest_tablet_motion(struct litest_device *d,
 		     int x, int y,
 		     struct axis_replacement *axes);
@@ -893,6 +904,9 @@ litest_timeout_softbuttons(void);
 
 void
 litest_timeout_buttonscroll(void);
+
+void
+litest_timeout_wheel_scroll(void);
 
 void
 litest_timeout_edgescroll(void);

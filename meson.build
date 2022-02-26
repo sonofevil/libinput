@@ -1,5 +1,5 @@
 project('libinput', 'c',
-	version : '1.19.0',
+	version : '1.20.0',
 	license : 'MIT/Expat',
 	default_options : [ 'c_std=gnu99', 'warning_level=2' ],
 	meson_version : '>= 0.49.0')
@@ -368,6 +368,7 @@ src_libinput = src_libfilter + [
 	'src/evdev-tablet-pad.c',
 	'src/evdev-tablet-pad.h',
 	'src/evdev-tablet-pad-leds.c',
+	'src/evdev-wheel.c',
 	'src/path-seat.c',
 	'src/udev-seat.c',
 	'src/udev-seat.h',
@@ -797,6 +798,7 @@ if get_option('tests')
 		'test/litest-device-wacom-intuos5-pad.c',
 		'test/litest-device-wacom-intuos5-pen.c',
 		'test/litest-device-wacom-isdv4-4200-pen.c',
+		'test/litest-device-wacom-isdv4-524c-pen.c',
 		'test/litest-device-wacom-isdv4-e6-pen.c',
 		'test/litest-device-wacom-isdv4-e6-finger.c',
 		'test/litest-device-wacom-mobilestudio-pro-pad.c',
@@ -833,7 +835,8 @@ if get_option('tests')
 	def_disable_backtrace = '-DLITEST_DISABLE_BACKTRACE_LOGGING'
 	defs_litest_selftest = [
 		def_no_main,
-		def_disable_backtrace
+		def_disable_backtrace,
+		'-Wno-unused',
 	]
 	test_litest_selftest_sources = [
 		'test/litest-selftest.c',

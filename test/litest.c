@@ -1750,7 +1750,8 @@ litest_bug_log_handler(struct libinput *libinput,
 		       va_list args)
 {
 	if (strstr(format, "client bug: ") ||
-	    strstr(format, "libinput bug: "))
+	    strstr(format, "libinput bug: ") ||
+	    strstr(format, "kernel bug: "))
 		return;
 
 	litest_abort_msg("Expected bug statement in log msg, aborting.\n");
@@ -2538,6 +2539,36 @@ litest_tablet_motion(struct litest_device *d, int x, int y, struct axis_replacem
 			litest_event(d, ev->type, ev->code, value);
 		ev++;
 	}
+}
+
+void
+litest_tablet_tip_down(struct litest_device *d,
+		       int x, int y,
+		       struct axis_replacement *axes)
+{
+	/* If the test device overrides tip_down and says it didn't
+	 * handle the event, let's continue normally */
+	if (d->interface->tablet_tip_down &&
+	    d->interface->tablet_tip_down(d, x, y, axes))
+		return;
+
+	litest_event(d, EV_KEY, BTN_TOUCH, 1);
+	litest_tablet_motion(d, x, y, axes);
+}
+
+void
+litest_tablet_tip_up(struct litest_device *d,
+		     int x, int y,
+		     struct axis_replacement *axes)
+{
+	/* If the test device overrides tip_down and says it didn't
+	 * handle the event, let's continue normally */
+	if (d->interface->tablet_tip_up &&
+	    d->interface->tablet_tip_up(d, x, y, axes))
+		return;
+
+	litest_event(d, EV_KEY, BTN_TOUCH, 0);
+	litest_tablet_motion(d, x, y, axes);
 }
 
 void
@@ -4296,6 +4327,12 @@ void
 litest_timeout_finger_switch(void)
 {
 	msleep(120);
+}
+
+void
+litest_timeout_wheel_scroll(void)
+{
+	msleep(600);
 }
 
 void

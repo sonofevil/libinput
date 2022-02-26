@@ -230,26 +230,35 @@ evdev_button_scroll_button(struct evdev_device *device,
 	}
 
 	if (is_press) {
-		enum timer_flags flags = TIMER_FLAG_NONE;
+		if (device->scroll.button < BTN_MOUSE + 5) {
+			/* For mouse buttons 1-5 (0x110 to 0x114) we apply a timeout before scrolling
+			 * since the button could also be used for regular clicking. */
+			enum timer_flags flags = TIMER_FLAG_NONE;
 
-		device->scroll.button_scroll_state = BUTTONSCROLL_BUTTON_DOWN;
+			device->scroll.button_scroll_state = BUTTONSCROLL_BUTTON_DOWN;
 
-		/* Special case: if middle button emulation is enabled and
-		 * our scroll button is the left or right button, we only
-		 * get here *after* the middle button timeout has expired
-		 * for that button press. The time passed is the button-down
-		 * time though (which is in the past), so we have to allow
-		 * for a negative timer to be set.
-		 */
-		if (device->middlebutton.enabled &&
-		    (device->scroll.button == BTN_LEFT ||
-		     device->scroll.button == BTN_RIGHT)) {
-			flags = TIMER_FLAG_ALLOW_NEGATIVE;
+			/* Special case: if middle button emulation is enabled and
+			 * our scroll button is the left or right button, we only
+			 * get here *after* the middle button timeout has expired
+			 * for that button press. The time passed is the button-down
+			 * time though (which is in the past), so we have to allow
+			 * for a negative timer to be set.
+			 */
+			if (device->middlebutton.enabled &&
+				(device->scroll.button == BTN_LEFT ||
+				device->scroll.button == BTN_RIGHT)) {
+				flags = TIMER_FLAG_ALLOW_NEGATIVE;
+			}
+
+			libinput_timer_set_flags(&device->scroll.timer,
+						time + DEFAULT_BUTTON_SCROLL_TIMEOUT,
+						flags);
+		} else {
+			/* For extra mouse buttons numbered 6 or more (0x115+) we assume it is
+			 * dedicated exclusively to scrolling, so we don't apply the timeout
+			 * in order to provide immediate scrolling responsiveness. */
+			device->scroll.button_scroll_state = BUTTONSCROLL_READY;
 		}
-
-		libinput_timer_set_flags(&device->scroll.timer,
-					 time + DEFAULT_BUTTON_SCROLL_TIMEOUT,
-					 flags);
 		device->scroll.button_down_time = time;
 		evdev_log_debug(device, "btnscroll: down\n");
 	} else {
@@ -414,6 +423,11 @@ evdev_notify_axis_wheel(struct evdev_device *device,
 {
 	struct normalized_coords delta = *delta_in;
 	struct wheel_v120 v120 = *v120_in;
+
+	if (device->scroll.invert_horizontal_scrolling) {
+		delta.x *= -1;
+		v120.x *= -1;
+	}
 
 	if (device->scroll.natural_scrolling_enabled) {
 		delta.x *= -1;
@@ -996,6 +1010,7 @@ evdev_read_switch_reliability_prop(struct evdev_device *device)
 	return r;
 }
 
+LIBINPUT_UNUSED
 static inline void
 evdev_print_event(struct evdev_device *device,
 		  const struct input_event *e)
@@ -1099,7 +1114,7 @@ evdev_note_time_delay(struct evdev_device *device,
 		return;
 
 	tdelta = us2ms(libinput->dispatch_time - eventtime);
-	if (tdelta > 10) {
+	if (tdelta > 20) {
 		evdev_log_bug_client_ratelimit(device,
 					       &device->delay_warning_limit,
 					       "event processing lagging behind by %dms, your system is too slow\n",
@@ -1836,6 +1851,70 @@ evdev_disable_accelerometer_axes(struct evdev_device *device)
 	libevdev_disable_event_code(evdev, EV_ABS, REL_Z);
 }
 
+static bool
+evdev_device_is_joystick_or_gamepad(struct evdev_device *device)
+{
+	enum evdev_device_udev_tags udev_tags;
+	bool has_joystick_tags;
+	struct libevdev *evdev = device->evdev;
+	unsigned int code, num_joystick_btns = 0, num_keys = 0;
+
+	/* The EVDEV_UDEV_TAG_JOYSTICK is set when a joystick or gamepad button
+	 * is found. However, it can not be used to identify joysticks or
+	 * gamepads because there are keyboards that also have it. Even worse,
+	 * many joysticks also map KEY_* and thus are tagged as keyboards.
+	 *
+	 * In order to be able to detect joysticks and gamepads and
+	 * differentiate them from keyboards, apply the following rules:
+	 *
+	 *  1. The device is tagged as joystick but not as tablet
+	 *  2. It has at least 2 joystick buttons
+	 *  3. It doesn't have 10 keyboard keys */
+
+	udev_tags = evdev_device_get_udev_tags(device, device->udev_device);
+	has_joystick_tags = (udev_tags & EVDEV_UDEV_TAG_JOYSTICK) &&
+			    !(udev_tags & EVDEV_UDEV_TAG_TABLET) &&
+			    !(udev_tags & EVDEV_UDEV_TAG_TABLET_PAD);
+
+	if (!has_joystick_tags)
+		return false;
+
+
+	for (code = BTN_JOYSTICK; code < BTN_DIGI; code++) {
+		if (libevdev_has_event_code(evdev, EV_KEY, code))
+			num_joystick_btns++;
+	}
+
+	for (code = BTN_TRIGGER_HAPPY; code <= BTN_TRIGGER_HAPPY40; code++) {
+		if (libevdev_has_event_code(evdev, EV_KEY, code))
+			num_joystick_btns++;
+	}
+
+	if (num_joystick_btns < 2) /* require at least 2 joystick buttons */
+		return false;
+
+
+	for (code = KEY_ESC; code <= KEY_MICMUTE; code++) {
+		if (libevdev_has_event_code(evdev, EV_KEY, code) )
+			num_keys++;
+	}
+
+	for (code = KEY_OK; code <= KEY_LIGHTS_TOGGLE; code++) {
+		if (libevdev_has_event_code(evdev, EV_KEY, code) )
+			num_keys++;
+	}
+
+	for (code = KEY_ALS_TOGGLE; code < BTN_TRIGGER_HAPPY; code++) {
+		if (libevdev_has_event_code(evdev, EV_KEY, code) )
+			num_keys++;
+	}
+
+	if (num_keys >= 10) /* should not have 10 keyboard keys */
+		return false;
+
+	return true;
+}
+
 static struct evdev_dispatch *
 evdev_configure_device(struct evdev_device *device)
 {
@@ -1879,9 +1958,9 @@ evdev_configure_device(struct evdev_device *device)
 		evdev_disable_accelerometer_axes(device);
 	}
 
-	if (udev_tags == (EVDEV_UDEV_TAG_INPUT|EVDEV_UDEV_TAG_JOYSTICK)) {
+	if (evdev_device_is_joystick_or_gamepad(device)) {
 		evdev_log_info(device,
-			       "device is a joystick, ignoring\n");
+			       "device is a joystick or a gamepad, ignoring\n");
 		return NULL;
 	}
 
